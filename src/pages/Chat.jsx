@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { mockChats } from '../mocks/data'
 import ReactLoading from 'react-loading'
 
+
 function Chat() {
     const [messages, setMessages] = useState([])
     const [newMessage, setNewMessage] = useState('')

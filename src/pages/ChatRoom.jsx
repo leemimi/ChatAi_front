@@ -34,48 +34,61 @@ function ChatRoom() {
         }
     }
 
-    // WebSocket 연결 설정
     const connectWebSocket = () => {
         try {
-            // 1. SockJS 웹소켓 연결 생성
-            const socket = new SockJS('http://localhost:8070/ws');
+            console.log('Attempting to connect to WebSocket...');
             
-            // 2. STOMP 클라이언트 설정
-            const client = Stomp.over(socket);
+            // Create a WebSocket factory function
+            const wsFactory = () => {
+                return new SockJS('http://localhost:8070/ws', null, {
+                    transports: ['websocket'],
+                    debug: true
+                });
+            };
             
-            // 3. 디버그 함수 설정
-            client.debug = console.log;  // 또는 () => {} 로 비활성화
+            // Pass the factory function to Stomp.over
+            const client = Stomp.over(wsFactory);
             
-            // 4. 클라이언트 ref 저장
+            client.debug = (str) => {
+                console.log('STOMP:', str);
+            };
+            
+            // Disable heartbeat to prevent disconnections
+            client.heartbeat.outgoing = 0;
+            client.heartbeat.incoming = 0;
+            
             stompClient.current = client;
-
-            // 5. STOMP 연결
-            stompClient.current.connect(
+    
+            client.connect(
                 {},
                 (frame) => {
-                    console.log('Connected to WebSocket');
+                    console.log('STOMP Connected:', frame);
                     setConnected(true);
-                    
-                    // 6. 채팅방 구독
-                    stompClient.current.subscribe(`/topic/room.${roomId}`, (message) => {
-                        const receivedMessage = JSON.parse(message.body);
-                        setMessages(prevMessages => [...prevMessages, {
-                            id: receivedMessage.id || `msg${Date.now()}`,
-                            content: receivedMessage.message,
-                            author: receivedMessage.writerName,
-                            createdAt: receivedMessage.createdAt || new Date().toISOString(),
-                            isMyMessage: receivedMessage.writerName === authorName
-                        }]);
+    
+                    client.subscribe(`/topic/room.${roomId}`, (message) => {
+                        console.log('Received message:', message);
+                        try {
+                            const receivedMessage = JSON.parse(message.body);
+                            setMessages(prevMessages => [...prevMessages, {
+                                id: receivedMessage.id || `msg${Date.now()}`,
+                                content: receivedMessage.message,
+                                author: receivedMessage.writerName,
+                                createdAt: receivedMessage.createdAt || new Date().toISOString(),
+                                isMyMessage: receivedMessage.writerName === authorName
+                            }]);
+                        } catch (error) {
+                            console.error('Error processing message:', error);
+                        }
                     });
                 },
                 (error) => {
-                    console.error('STOMP error:', error);
+                    console.error('STOMP connection error:', error);
                     setConnected(false);
                     toast.error('채팅 연결이 끊어졌습니다.');
                 }
             );
         } catch (error) {
-            console.error('WebSocket connection error:', error);
+            console.error('WebSocket setup error:', error);
             toast.error('채팅 연결에 실패했습니다.');
             setConnected(false);
         }
