@@ -4,6 +4,8 @@ import ReactLoading from 'react-loading'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { mockChats } from '../mocks/data'
+import { Stomp } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
 function ChatRoom() {
     const { roomId } = useParams()
@@ -13,7 +15,7 @@ function ChatRoom() {
     const [loading, setLoading] = useState(true)
     const [connected, setConnected] = useState(false)
     const messagesEndRef = useRef(null)
-    const wsRef = useRef(null)
+    const stompClient = useRef(null)
 
     // 초기 메시지 로드
     const fetchInitialMessages = async () => {
@@ -35,47 +37,59 @@ function ChatRoom() {
     // WebSocket 연결 설정
     const connectWebSocket = () => {
         try {
-            const ws = new WebSocket(`ws://localhost:8070/ws/chat/${roomId}`)
+            // 1. SockJS 웹소켓 연결 생성
+            const socket = new SockJS('http://localhost:8070/ws');
+            
+            // 2. STOMP 클라이언트 설정
+            const client = Stomp.over(socket);
+            
+            // 3. 디버그 함수 설정
+            client.debug = console.log;  // 또는 () => {} 로 비활성화
+            
+            // 4. 클라이언트 ref 저장
+            stompClient.current = client;
 
-            ws.onopen = () => {
-                console.log('WebSocket Connected')
-                setConnected(true)
-            }
-
-            ws.onmessage = (event) => {
-                const message = JSON.parse(event.data)
-                setMessages((prev) => [...prev, message])
-            }
-
-            ws.onclose = () => {
-                console.log('WebSocket Disconnected')
-                setConnected(false)
-                // 연결이 끊어졌을 때 10초 후 재연결 시도
-                // setTimeout(connectWebSocket, 10000)
-            }
-
-            ws.onerror = (error) => {
-                console.error('WebSocket Error:', error)
-                toast.error('채팅 연결에 문제가 발생했습니다.')
-            }
-
-            wsRef.current = ws
+            // 5. STOMP 연결
+            stompClient.current.connect(
+                {},
+                (frame) => {
+                    console.log('Connected to WebSocket');
+                    setConnected(true);
+                    
+                    // 6. 채팅방 구독
+                    stompClient.current.subscribe(`/topic/room.${roomId}`, (message) => {
+                        const receivedMessage = JSON.parse(message.body);
+                        setMessages(prevMessages => [...prevMessages, {
+                            id: receivedMessage.id || `msg${Date.now()}`,
+                            content: receivedMessage.message,
+                            author: receivedMessage.writerName,
+                            createdAt: receivedMessage.createdAt || new Date().toISOString(),
+                            isMyMessage: receivedMessage.writerName === authorName
+                        }]);
+                    });
+                },
+                (error) => {
+                    console.error('STOMP error:', error);
+                    setConnected(false);
+                    toast.error('채팅 연결이 끊어졌습니다.');
+                }
+            );
         } catch (error) {
-            console.error('WebSocket connection error:', error)
-            toast.error('채팅 연결에 실패했습니다.')
+            console.error('WebSocket connection error:', error);
+            toast.error('채팅 연결에 실패했습니다.');
+            setConnected(false);
         }
-    }
+    };
 
     // 컴포넌트 마운트 시 초기화
     useEffect(() => {
         fetchInitialMessages()
-        // 웹 소켓 연결
-        // connectWebSocket()
+        connectWebSocket()
 
         // 컴포넌트 언마운트 시 WebSocket 연결 종료
         return () => {
-            if (wsRef.current) {
-                wsRef.current.close()
+            if (stompClient.current) {
+                stompClient.current.disconnect();
             }
         }
     }, [roomId])
@@ -89,41 +103,20 @@ function ChatRoom() {
         e.preventDefault()
         if (!newMessage.trim() || !authorName.trim()) return
 
-        const newChat = {
-            id: `msg${messages.length + 1}`,
-            content: newMessage,
-            author: authorName,
-            createdAt: new Date().toISOString(),
-            isMyMessage: true,
-        }
-
         try {
-            if (connected && wsRef.current) {
-                // WebSocket을 통해 메시지 전송
-                wsRef.current.send(
-                    JSON.stringify({
-                        roomId,
-                        content: newMessage,
-                        author: authorName,
-                    }),
-                )
-            } else {
-                // WebSocket 연결이 없을 경우 HTTP API로 폴백
-                await axios.post(`http://localhost:8070/api/v1/chat/rooms/${roomId}/messages`, {
-                    content: newMessage,
-                    author: authorName,
-                })
+            if (connected && stompClient.current) {
+                stompClient.current.send(`/app/chat/${roomId}`, {}, JSON.stringify({
+                        message: newMessage,
+                        writerName: authorName,
+                        roomId: roomId
+                    })
+                );
             }
-            // UI 즉시 업데이트
-            setMessages((prev) => [...prev, newChat])
+            setNewMessage('');
         } catch (error) {
-            console.error('Error sending message:', error)
-            // 에러 발생시에도 UI 업데이트
-            setMessages((prev) => [...prev, newChat])
-            toast.warning('테스트 모드로 작동합니다.')
+            console.error('Error sending message:', error);
+            toast.error('메시지 전송에 실패했습니다.');
         }
-
-        setNewMessage('')
     }
 
     if (loading) {

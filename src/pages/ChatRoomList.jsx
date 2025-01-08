@@ -14,10 +14,10 @@ function ChatRoomList() {
     const fetchChatRooms = async () => {
         try {
             const response = await axios.get('http://localhost:8070/api/v1/chat/rooms')
-            setChatRooms(response.data)
+            setChatRooms(response.data.data.chatRoomList || []);
         } catch (error) {
             console.error('Error fetching chat rooms:', error)
-            setChatRooms(mockChatRooms)
+            setChatRooms(mockChatRooms || []);
             toast.warning('테스트 데이터를 표시합니다.')
             // toast.error('채팅방 목록을 불러오는데 실패했습니다.')
         } finally {
@@ -34,13 +34,16 @@ function ChatRoomList() {
         if (!newRoomName.trim()) return
 
         try {
-            setCreating(true)
-            await axios.post('http://localhost:8070/api/v1/chat/rooms', {
-                name: newRoomName,
-            })
-            setNewRoomName('')
-            toast.success('채팅방이 생성되었습니다.')
+            setCreating(true); // 생성 중 상태로 설정
+            const response = await axios.post('http://localhost:8070/api/v1/chat/rooms', {
+            roomName: newRoomName, // roomName으로 수정
+        });
+            setNewRoomName(''); // 입력 필드 초기화
+            toast.success('채팅방이 생성되었습니다.');
             fetchChatRooms() // 목록 새로고침
+
+        // 새로 생성된 방을 chatRooms에 추가
+        setChatRooms((prev) => [...prev, response.data.data]);
         } catch (error) {
             toast.error('채팅방 생성에 실패했습니다.')
             console.error('Error creating chat room:', error)
@@ -85,7 +88,7 @@ function ChatRoomList() {
 
             {/* 채팅방 목록 */}
             <div className="space-y-4">
-                {chatRooms.length === 0 ? (
+            {Array.isArray(chatRooms) && chatRooms.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">생성된 채팅방이 없습니다.</p>
                 ) : (
                     chatRooms.map((room) => (
@@ -97,17 +100,17 @@ function ChatRoomList() {
                             <div className="flex justify-between items-start">
                                 <div>
                                     <h2 className="font-semibold text-lg">{room.name}</h2>
-                                    {room.lastMessage && (
+                                    {/* {room.lastMessage && (
                                         <p className="text-gray-600 text-sm mt-1">{room.lastMessage}</p>
-                                    )}
+                                    )} */}
                                 </div>
                                 <div className="text-right">
                                     <span className="text-sm text-gray-500">
                                         {new Date(room.createdAt).toLocaleDateString()}
                                     </span>
-                                    {room.participantCount && (
+                                    {/* {room.participantCount && (
                                         <p className="text-xs text-gray-400 mt-1">참여자 {room.participantCount}명</p>
-                                    )}
+                                    )} */}
                                 </div>
                             </div>
                         </Link>
