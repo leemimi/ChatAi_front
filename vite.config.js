@@ -5,6 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   define: {
-    global: {}, // 브라우저에서 global 변수를 빈 객체로 설정
+    global: 'window', // 브라우저에서 global 변수를 빈 객체로 설정
   },
 })

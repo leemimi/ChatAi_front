@@ -69,7 +69,7 @@ function ChatRoom() {
                     console.log('STOMP Connected:', frame);
                     setConnected(true);
     
-                    client.subscribe(`/topic/room.${roomId}`, (message) => {
+                    client.subscribe(`/topic/room/${roomId}`, (message) => {
                         console.log('Received message:', message.body);
                         try {
                             const receivedMessage = JSON.parse(message.body);
