@@ -37,7 +37,7 @@ function ChatRoom() {
     const connectWebSocket = () => {
         try {
             console.log('Attempting to connect to WebSocket...');
-            
+
             // Create a WebSocket factory function
             const wsFactory = () => {
                 return new SockJS('http://localhost:8070/ws', null, {
@@ -54,10 +54,16 @@ function ChatRoom() {
             };
             
             // Disable heartbeat to prevent disconnections
-            client.heartbeat.outgoing = 0;
-            client.heartbeat.incoming = 0;
+            client.heartbeat.outgoing = 30000;
+            client.heartbeat.incoming = 30000;
             
             stompClient.current = client;
+            stompClient.current.subscribe(`/topic/room.${roomId}`, (message) => {
+                console.log("Received message:", message.body);
+            });
+            client.debug = (str) => {
+                console.log("STOMP Debug:", str);
+            };
     
             client.connect(
                 {},
@@ -107,14 +113,22 @@ function ChatRoom() {
         }
     }, [roomId])
 
-    // 새 메시지 수신 시 스크롤
-    useEffect(() => {
+     // 새 메시지 수신 시 스크롤
+     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         if (!newMessage.trim() || !authorName.trim()) return
+
+        const newChat = {
+            id: `msg${messages.length + 1}`,
+            content: newMessage,
+            author: authorName,
+            createdAt: new Date().toISOString(),
+            isMyMessage: true,
+        }
 
         try {
             if (connected && stompClient.current) {
@@ -125,11 +139,13 @@ function ChatRoom() {
                     })
                 );
             }
-            setNewMessage('');
+            setMessages((prev) => [...prev, newChat])
         } catch (error) {
             console.error('Error sending message:', error);
+            setMessages((prev) => [...prev, newChat])
             toast.error('메시지 전송에 실패했습니다.');
         }
+        setNewMessage('')
     }
 
     if (loading) {
