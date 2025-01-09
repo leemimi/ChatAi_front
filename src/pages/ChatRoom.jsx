@@ -57,14 +57,12 @@ function ChatRoom() {
             client.heartbeat.outgoing = 30000;
             client.heartbeat.incoming = 30000;
             
-            stompClient.current = client;
-            stompClient.current.subscribe(`/topic/room.${roomId}`, (message) => {
-                console.log("Received message:", message.body);
-            });
+            
             client.debug = (str) => {
                 console.log("STOMP Debug:", str);
             };
-    
+            
+            stompClient.current = client;
             client.connect(
                 {},
                 (frame) => {
@@ -72,7 +70,7 @@ function ChatRoom() {
                     setConnected(true);
     
                     client.subscribe(`/topic/room.${roomId}`, (message) => {
-                        console.log('Received message:', message);
+                        console.log('Received message:', message.body);
                         try {
                             const receivedMessage = JSON.parse(message.body);
                             setMessages(prevMessages => [...prevMessages, {
