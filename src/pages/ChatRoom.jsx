@@ -54,8 +54,8 @@ function ChatRoom() {
             };
             
             // Disable heartbeat to prevent disconnections
-            client.heartbeat.outgoing = 30000;
-            client.heartbeat.incoming = 30000;
+            client.heartbeat.outgoing = 0;
+            client.heartbeat.incoming = 0;
             
             
             client.debug = (str) => {
@@ -72,14 +72,23 @@ function ChatRoom() {
                     client.subscribe(`/topic/room/${roomId}`, (message) => {
                         console.log('Received message:', message.body);
                         try {
+                            
                             const receivedMessage = JSON.parse(message.body);
-                            setMessages(prevMessages => [...prevMessages, {
-                                id: receivedMessage.id || `msg${Date.now()}`,
-                                content: receivedMessage.message,
-                                author: receivedMessage.writerName,
-                                createdAt: receivedMessage.createdAt || new Date().toISOString(),
-                                isMyMessage: receivedMessage.writerName === authorName
-                            }]);
+                            // console.log(authorName);
+                            // console.log(receivedMessage.writerName);
+                            // console.log(authorName===receivedMessage.writerName);
+                            if (receivedMessage.writerName.trim().toLowerCase() === authorName.toLowerCase()){
+                                return;
+                            }else{
+                                setMessages(prevMessages => [...prevMessages, {
+                                    id: receivedMessage.id || `msg${Date.now()}`,
+                                    content: receivedMessage.message,
+                                    author: receivedMessage.writerName,
+                                    createdAt: receivedMessage.createdAt || new Date().toISOString(),
+                                    isMyMessage: receivedMessage.writerName === authorName
+                                }]);
+                            }
+                            
                         } catch (error) {
                             console.error('Error processing message:', error);
                         }
@@ -109,7 +118,7 @@ function ChatRoom() {
                 stompClient.current.disconnect();
             }
         }
-    }, [roomId])
+    }, [roomId,authorName])
 
      // 새 메시지 수신 시 스크롤
      useEffect(() => {
